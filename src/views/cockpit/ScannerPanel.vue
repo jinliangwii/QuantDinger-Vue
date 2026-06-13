@@ -32,12 +32,7 @@
         :locale="{ emptyText: loading ? 'Loading…' : emptyText }"
         :custom-row="makeRow"
         :row-class-name="rowClass"
-      >
-        <!-- Pass through all scoped slots so callers can override any cell -->
-        <template v-for="(_, name) in $scopedSlots" v-slot:[name]="slotProps">
-          <slot :name="name" v-bind="slotProps" />
-        </template>
-      </a-table>
+      />
     </div>
   </div>
 </template>

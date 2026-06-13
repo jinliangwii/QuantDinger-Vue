@@ -34,7 +34,6 @@
       <pane :size="leftSize" min-size="18" class="col-pane">
         <splitpanes horizontal class="h-full">
 
-          <!-- YC Scanner -->
           <pane min-size="15">
             <scanner-panel
               title="YC Scanner"
@@ -46,20 +45,9 @@
               empty-text="No pre-market candidates"
               @select="selectTicker"
               @refresh="refreshYC"
-            >
-              <template #rank="{ index }">{{ index + 1 }}</template>
-              <template #ticker="{ text }"><strong>{{ text }}</strong></template>
-              <template #score="{ text, record }">
-                <span class="score-badge" :class="scoreBadgeClass(record.score)">{{ record.score.toFixed(1) }}</span>
-              </template>
-              <template #gap_pct="{ text }"><span class="pos">+{{ text.toFixed(1) }}%</span></template>
-              <template #rvol="{ text }"><span :class="text >= 5 ? 'pos' : ''">{{ text.toFixed(1) }}x</span></template>
-              <template #vol="{ text }">{{ fmtVol(text) }}</template>
-              <template #float="{ text }">{{ fmtFloat(text) }}</template>
-            </scanner-panel>
+            />
           </pane>
 
-          <!-- Most Active -->
           <pane min-size="15">
             <scanner-panel
               title="Most Active"
@@ -71,18 +59,9 @@
               empty-text="No data"
               @select="selectTicker"
               @refresh="refreshMovers"
-            >
-              <template #rank="{ record }">{{ record.rank }}</template>
-              <template #ticker="{ text }"><strong>{{ text }}</strong></template>
-              <template #price="{ text }">${{ text.toFixed(2) }}</template>
-              <template #change_pct="{ text }">
-                <span :class="text >= 0 ? 'pos' : 'neg'">{{ text >= 0 ? '+' : '' }}{{ text.toFixed(2) }}%</span>
-              </template>
-              <template #volume="{ text }">{{ fmtVol(text) }}</template>
-            </scanner-panel>
+            />
           </pane>
 
-          <!-- Top Gainers -->
           <pane min-size="15">
             <scanner-panel
               title="Top Gainers"
@@ -94,15 +73,7 @@
               empty-text="No data"
               @select="selectTicker"
               @refresh="refreshMovers"
-            >
-              <template #rank="{ record }">{{ record.rank }}</template>
-              <template #ticker="{ text }"><strong>{{ text }}</strong></template>
-              <template #price="{ text }">${{ text.toFixed(2) }}</template>
-              <template #change_pct="{ text }">
-                <span :class="text >= 0 ? 'pos' : 'neg'">{{ text >= 0 ? '+' : '' }}{{ text.toFixed(2) }}%</span>
-              </template>
-              <template #volume="{ text }">{{ fmtVol(text) }}</template>
-            </scanner-panel>
+            />
           </pane>
 
         </splitpanes>
@@ -159,24 +130,6 @@ import { getWatchlist, getWatchlistHistory, getMovers } from '@/api/cockpit'
 import ScannerPanel from './ScannerPanel.vue'
 import ContextChart from './ContextChart.vue'
 
-const YC_COLUMNS = [
-  { title: '#',     key: 'rank',          scopedSlots: { customRender: 'rank' },      width: 28 },
-  { title: 'Tick',  dataIndex: 'ticker',  scopedSlots: { customRender: 'ticker' },    width: 52 },
-  { title: 'Score', dataIndex: 'score',   scopedSlots: { customRender: 'score' },     width: 52, sorter: (a, b) => a.score - b.score, defaultSortOrder: 'descend' },
-  { title: 'Gap%',  dataIndex: 'gap_pct', scopedSlots: { customRender: 'gap_pct' },   width: 50, sorter: (a, b) => a.gap_pct - b.gap_pct },
-  { title: 'RVOL',  dataIndex: 'rvol',    scopedSlots: { customRender: 'rvol' },      width: 44, sorter: (a, b) => a.rvol - b.rvol },
-  { title: 'Vol',   dataIndex: 'premarket_vol', scopedSlots: { customRender: 'vol' }, width: 50, sorter: (a, b) => a.premarket_vol - b.premarket_vol },
-  { title: 'Float', dataIndex: 'float_shares',  scopedSlots: { customRender: 'float' }, width: 46 },
-]
-
-const MOVER_COLUMNS = [
-  { title: '#',    key: 'rank',         scopedSlots: { customRender: 'rank' },       width: 28 },
-  { title: 'Tick', dataIndex: 'ticker', scopedSlots: { customRender: 'ticker' },     width: 56 },
-  { title: 'Price',dataIndex: 'price',  scopedSlots: { customRender: 'price' },      width: 54, sorter: (a, b) => a.price - b.price },
-  { title: 'Chg%', dataIndex: 'change_pct', scopedSlots: { customRender: 'change_pct' }, width: 58, sorter: (a, b) => a.change_pct - b.change_pct },
-  { title: 'Vol',  dataIndex: 'volume', scopedSlots: { customRender: 'volume' },     width: 50, sorter: (a, b) => a.volume - b.volume },
-]
-
 const REFRESH_MS = 120_000
 
 export default {
@@ -197,14 +150,85 @@ export default {
       marketStatus:  'closed',
       dataDate:      null,
       leftSize:      28,
-      ycColumns:     YC_COLUMNS,
-      moverColumns:  MOVER_COLUMNS,
     }
   },
 
   computed: {
     isDarkTheme () { return this.navTheme === 'dark' || this.navTheme === 'realdark' },
     marketOpen ()  { return this.marketStatus !== 'closed' },
+
+    ycColumns () {
+      const h = this.$createElement
+      const fmtVol   = this.fmtVol
+      const fmtFloat = this.fmtFloat
+      const scoreClass = this.scoreBadgeClass
+      return [
+        {
+          title: '#', key: 'rank', width: 30,
+          customRender: (text, record, index) => index + 1
+        },
+        {
+          title: 'Ticker', dataIndex: 'ticker', width: 58,
+          customRender: (text) => h('strong', [text])
+        },
+        {
+          title: 'Score', dataIndex: 'score', width: 56,
+          defaultSortOrder: 'descend',
+          sorter: (a, b) => a.score - b.score,
+          customRender: (text, record) => h('span', { class: ['score-badge', scoreClass(record.score)] }, [record.score.toFixed(1)])
+        },
+        {
+          title: 'Gap%', dataIndex: 'gap_pct', width: 52,
+          sorter: (a, b) => a.gap_pct - b.gap_pct,
+          customRender: (text) => h('span', { class: 'pos' }, ['+' + text.toFixed(1) + '%'])
+        },
+        {
+          title: 'RVOL', dataIndex: 'rvol', width: 46,
+          sorter: (a, b) => a.rvol - b.rvol,
+          customRender: (text) => h('span', { class: text >= 5 ? 'pos' : '' }, [text.toFixed(1) + 'x'])
+        },
+        {
+          title: 'Vol', dataIndex: 'premarket_vol', width: 52,
+          sorter: (a, b) => a.premarket_vol - b.premarket_vol,
+          customRender: (text) => fmtVol(text)
+        },
+        {
+          title: 'Float', dataIndex: 'float_shares', width: 48,
+          sorter: (a, b) => a.float_shares - b.float_shares,
+          customRender: (text) => fmtFloat(text)
+        },
+      ]
+    },
+
+    moverColumns () {
+      const h = this.$createElement
+      const fmtVol = this.fmtVol
+      return [
+        {
+          title: '#', key: 'rank', width: 30,
+          customRender: (text, record) => record.rank
+        },
+        {
+          title: 'Ticker', dataIndex: 'ticker', width: 60,
+          customRender: (text) => h('strong', [text])
+        },
+        {
+          title: 'Price', dataIndex: 'price', width: 58,
+          sorter: (a, b) => a.price - b.price,
+          customRender: (text) => '$' + (text || 0).toFixed(2)
+        },
+        {
+          title: 'Chg%', dataIndex: 'change_pct', width: 62,
+          sorter: (a, b) => a.change_pct - b.change_pct,
+          customRender: (text) => h('span', { class: text >= 0 ? 'pos' : 'neg' }, [(text >= 0 ? '+' : '') + text.toFixed(2) + '%'])
+        },
+        {
+          title: 'Vol', dataIndex: 'volume', width: 52,
+          sorter: (a, b) => a.volume - b.volume,
+          customRender: (text) => fmtVol(text)
+        },
+      ]
+    },
   },
 
   mounted () {
@@ -223,8 +247,8 @@ export default {
     mode () {
       clearInterval(this.ycTimer)
       clearInterval(this.moverTimer)
-      this.ycCandidates  = []
-      this.movers        = { most_actives: [], top_gainers: [], top_losers: [] }
+      this.ycCandidates   = []
+      this.movers         = { most_actives: [], top_gainers: [], top_losers: [] }
       this.selectedTicker = ''
       this.refreshYC()
       if (this.mode === 'live') { this.refreshMovers() }
@@ -325,16 +349,13 @@ export default {
 .h-full { height: 100%; }
 .col-pane { height: 100%; overflow: hidden; }
 
-/* ── Splitpanes gutter styling ── */
+/* ── Splitpanes gutter ── */
 :deep(.splitpanes__splitter) {
-  background: #d9d9d9 !important;
-  z-index: 1;
-  transition: background 0.15s;
+  background: #d9d9d9 !important; z-index: 1; transition: background 0.15s;
 }
 :deep(.splitpanes__splitter:hover),
 :deep(.splitpanes__splitter:active) { background: #1890ff !important; }
 .cockpit-dark :deep(.splitpanes__splitter) { background: #2a2a2a !important; }
-
 :deep(.splitpanes--horizontal > .splitpanes__splitter) {
   height: 4px !important; min-height: 4px; cursor: row-resize;
 }
@@ -342,11 +363,11 @@ export default {
   width: 4px !important; min-width: 4px; cursor: col-resize;
 }
 
-/* ── Score badges ── */
-.score-badge { display: inline-block; padding: 1px 4px; border-radius: 3px; font-weight: 600; font-size: 11px; }
-.score-high { background: #f6ffed; color: #389e0d; border: 1px solid #b7eb8f; }
-.score-mid  { background: #fffbe6; color: #d48806; border: 1px solid #ffe58f; }
-.score-low  { background: #fff1f0; color: #cf1322; border: 1px solid #ffa39e; }
-.pos { color: #389e0d; font-weight: 500; }
-.neg { color: #cf1322; font-weight: 500; }
+/* ── Score badges (used in customRender VNodes) ── */
+:deep(.score-badge) { display: inline-block; padding: 1px 4px; border-radius: 3px; font-weight: 600; font-size: 11px; }
+:deep(.score-high)  { background: #f6ffed; color: #389e0d; border: 1px solid #b7eb8f; }
+:deep(.score-mid)   { background: #fffbe6; color: #d48806; border: 1px solid #ffe58f; }
+:deep(.score-low)   { background: #fff1f0; color: #cf1322; border: 1px solid #ffa39e; }
+:deep(.pos) { color: #389e0d; font-weight: 500; }
+:deep(.neg) { color: #cf1322; font-weight: 500; }
 </style>
