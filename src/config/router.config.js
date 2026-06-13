@@ -94,6 +94,13 @@ export const asyncRouterMap = [
         component: () => import('@/views/broker-accounts'),
         meta: { title: 'menu.dashboard.brokerAccounts', keepAlive: true, icon: 'bank', permission: ['dashboard'] }
       },
+      // Seneca cockpit — pre-market watchlist (read-only, M1)
+      {
+        path: '/cockpit',
+        name: 'Cockpit',
+        component: () => import('@/views/cockpit'),
+        meta: { title: 'Cockpit', keepAlive: false, icon: 'radar-chart', permission: ['dashboard'] }
+      },
       // 旧路由兼容：图表与指标 → 指标 IDE
       {
         path: '/indicator-analysis',
