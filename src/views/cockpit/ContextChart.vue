@@ -147,10 +147,7 @@ export default {
     return {
       loading: false,
       error: null,
-      bias: null,
-      _chart: null,
-      _levelIds: [],
-      _dividerIds: []
+      bias: null
     }
   },
   watch: {
@@ -158,17 +155,21 @@ export default {
     date ()      { if (this.ticker) { this.load() } }
   },
   mounted () {
+    // Non-reactive instance properties (Vue 2 skips _ prefix in data())
+    this.chart = null
+    this.levelIds = []
+    this.dividerIds = []
+
     ensureRegistered()
-    this._chart = init(this.$refs.chartEl)
-    this._chart.setPriceVolumePrecision(2, 0)
-    // Apply dark theme if needed
+    this.chart = init(this.$refs.chartEl)
+    this.chart.setPriceVolumePrecision(2, 0)
     if (this.dark) this._applyDarkTheme()
     if (this.ticker) this.load()
   },
   beforeDestroy () {
-    if (this._chart) {
-      try { this._chart.destroy() } catch (_) {}
-      this._chart = null
+    if (this.chart) {
+      try { this.chart.destroy() } catch (_) {}
+      this.chart = null
     }
   },
   methods: {
@@ -193,40 +194,33 @@ export default {
     },
 
     _applyContext (ctx) {
-      if (!this._chart) return
+      if (!this.chart) return
       const { candles, levels, bias, session_open_ms } = ctx
 
       this.bias = bias
 
-      // Feed candles (klinecharts needs ms timestamps, OHLCV)
-      this._chart.applyNewData(candles)
-      this._chart.setPriceVolumePrecision(2, 0)
+      this.chart.applyNewData(candles)
+      this.chart.setPriceVolumePrecision(2, 0)
 
-      // Volume pane
-      try { this._chart.createIndicator('VOL', false, { height: 72, minHeight: 40 }) } catch (_) {}
+      try { this.chart.createIndicator('VOL', false, { height: 72, minHeight: 40 }) } catch (_) {}
+      try { this.chart.createIndicator('SENECA_VWAP', false, { id: 'candle_pane' }) } catch (_) {}
 
-      // VWAP line on candle pane
-      try { this._chart.createIndicator('SENECA_VWAP', false, { id: 'candle_pane' }) } catch (_) {}
-
-      // Remove previous level/divider overlays
       this._clearOverlays()
 
-      // Session-open divider
       if (session_open_ms && candles.length) {
-        const id = this._chart.createOverlay({
+        const id = this.chart.createOverlay({
           name: 'sessionOpen',
           lock: true,
           points: [{ timestamp: session_open_ms, value: candles[0].close }],
           extendData: {}
         })
-        if (id) this._dividerIds.push(id)
+        if (id) this.dividerIds.push(id)
       }
 
-      // S/R level lines
       if (candles.length) {
         const anchorTs = candles[0].timestamp
         for (const lvl of levels) {
-          const id = this._chart.createOverlay({
+          const id = this.chart.createOverlay({
             name: 'srLevel',
             lock: true,
             points: [{ timestamp: anchorTs, value: lvl.price }],
@@ -237,34 +231,34 @@ export default {
               tier:  lvl.tier
             }
           })
-          if (id) this._levelIds.push(id)
+          if (id) this.levelIds.push(id)
         }
       }
     },
 
     _clearOverlays () {
       const remove = (id) => {
-        try { this._chart.removeOverlay(id) } catch (_) {}
+        try { this.chart.removeOverlay(id) } catch (_) {}
       }
-      this._levelIds.forEach(remove)
-      this._dividerIds.forEach(remove)
-      this._levelIds = []
-      this._dividerIds = []
+      this.levelIds.forEach(remove)
+      this.dividerIds.forEach(remove)
+      this.levelIds = []
+      this.dividerIds = []
     },
 
     clearChart () {
       this.bias = null
       this.error = null
       this._clearOverlays()
-      if (this._chart) {
-        try { this._chart.applyNewData([]) } catch (_) {}
+      if (this.chart) {
+        try { this.chart.applyNewData([]) } catch (_) {}
       }
     },
 
     _applyDarkTheme () {
-      if (!this._chart) return
+      if (!this.chart) return
       try {
-        this._chart.setStyles({
+        this.chart.setStyles({
           grid: { horizontal: { color: 'rgba(255,255,255,0.06)' }, vertical: { color: 'rgba(255,255,255,0.04)' } },
           candle: {
             bar: { upColor: '#26a69a', downColor: '#ef5350', noChangeColor: '#888' },
