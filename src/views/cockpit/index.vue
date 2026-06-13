@@ -23,6 +23,14 @@
     </div>
 
     <a-alert
+      v-if="mode === 'live' && marketStatus === 'closed'"
+      type="warning"
+      :message="`Market closed — showing last trading session (${dataDate})`"
+      show-icon
+      style="margin-bottom: 12px"
+    />
+
+    <a-alert
       v-if="error"
       type="error"
       :message="error"
@@ -120,6 +128,8 @@ export default {
       selectedDate: null,
       historyDate: null,
       lastFetched: null,
+      marketStatus: 'live',
+      dataDate: null,
       columns: COLUMNS
     }
   },
@@ -149,6 +159,8 @@ export default {
         }
         if (res && res.success) {
           this.candidates = res.data.candidates || []
+          this.marketStatus = res.data.market_status || 'live'
+          this.dataDate = res.data.data_date || null
           this.lastFetched = 'Updated ' + moment().format('HH:mm:ss')
         } else {
           this.error = (res && res.error) || 'Fetch failed'
