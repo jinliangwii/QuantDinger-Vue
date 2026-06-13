@@ -12,3 +12,8 @@ export function getLevels (ticker, date) {
   const params = date ? { date } : {}
   return request({ url: `/api/cockpit/levels/${ticker}`, method: 'get', params })
 }
+
+export function getContext (ticker, date) {
+  const params = date ? { date } : {}
+  return request({ url: `/api/cockpit/context/${ticker}`, method: 'get', params })
+}
