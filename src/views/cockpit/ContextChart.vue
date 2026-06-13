@@ -84,7 +84,7 @@
 </template>
 
 <script>
-import { init, registerOverlay, registerIndicator, ActionType } from 'klinecharts'
+import { init, registerOverlay, registerIndicator, ActionType, DomPosition } from 'klinecharts'
 import { getContext } from '@/api/cockpit'
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -383,23 +383,32 @@ export default {
       })
     } catch (_) {}
 
-    // ── Wheel event forwarder ──
-    // klinecharts listens for wheel on its internal canvas, but the y-axis
-    // (price) area is rendered separately and may not forward events there.
-    // Capture wheel on the whole container and dispatch to the chart element
-    // so scrolling on the price axis also zooms the candle width.
+    // ── Wheel event forwarder for price-axis scroll ──
+    // klinecharts' mouseWheelVertEvent checks if the event target is the MAIN
+    // widget (candlestick area). Events on the YAxis widget are ignored.
+    // We forward those to the main widget so scrolling on the price axis zooms.
     this._onWheel = (e) => {
       if (!this.chart) return
+      // Only handle vertical scroll (zoom). Horizontal scroll (pan) is
+      // handled natively by klinecharts on all widgets.
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return
+
       try {
-        e.preventDefault()
-        const dom = this.chart.getDom()
-        const target = (dom && dom.chart) || this.$refs.chartEl
-        if (target && target !== e.target) {
-          target.dispatchEvent(new WheelEvent('wheel', {
-            deltaX: e.deltaX, deltaY: e.deltaY, deltaMode: e.deltaMode,
-            clientX: e.clientX, clientY: e.clientY,
-            ctrlKey: e.ctrlKey, bubbles: true
-          }))
+        const yAxisEl = this.chart.getDom('candle_pane', DomPosition.YAxis)
+        if (yAxisEl && yAxisEl.contains(e.target)) {
+          e.preventDefault()
+          const mainEl = this.chart.getDom('candle_pane', DomPosition.Main)
+          if (mainEl) {
+            mainEl.dispatchEvent(new WheelEvent('wheel', {
+              deltaX: e.deltaX,
+              deltaY: e.deltaY,
+              deltaMode: e.deltaMode,
+              clientX: e.clientX,
+              clientY: e.clientY,
+              ctrlKey: e.ctrlKey,
+              bubbles: true
+            }))
+          }
         }
       } catch (_) {}
     }
