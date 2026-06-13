@@ -154,8 +154,8 @@ export default {
     }
   },
   watch: {
-    ticker (val) { if (val) this.load() else this.clearChart() },
-    date ()      { if (this.ticker) this.load() }
+    ticker (val) { if (val) { this.load() } else { this.clearChart() } },
+    date ()      { if (this.ticker) { this.load() } }
   },
   mounted () {
     ensureRegistered()
