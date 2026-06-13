@@ -361,6 +361,8 @@ export default {
     this.levelIds       = []
     this.dividerIds     = []
     this.syncLineId     = null
+    this.volIndicatorId = null
+    this.vwapIndicatorId = null
     this._loadToken     = 0
     this._lastEmitIndex = -1
     this._lastCrosshairData = null
@@ -580,9 +582,13 @@ export default {
       this.chart.applyNewData(candles)
       this.chart.setPriceVolumePrecision(2, 0)
 
-      // Always recreate indicators — applyNewData may clear them
-      try { this.chart.createIndicator('VOL', false, { height: 72, minHeight: 40 }) } catch (_) {}
-      try { this.chart.createIndicator('SENECA_VWAP', false, { id: 'candle_pane' }) } catch (_) {}
+      // Remove old indicators before creating new ones (prevents accumulation
+      // across ticker switches if applyNewData doesn't clear them)
+      if (this.volIndicatorId) { try { this.chart.removeIndicator(this.volIndicatorId) } catch (_) {} this.volIndicatorId = null }
+      if (this.vwapIndicatorId) { try { this.chart.removeIndicator(this.vwapIndicatorId) } catch (_) {} this.vwapIndicatorId = null }
+
+      try { this.volIndicatorId = this.chart.createIndicator('VOL', false, { height: 72, minHeight: 40 }) } catch (_) {}
+      try { this.vwapIndicatorId = this.chart.createIndicator('SENECA_VWAP', false, { id: 'candle_pane' }) } catch (_) {}
 
       this._clearOverlays()
 
@@ -621,6 +627,11 @@ export default {
       this.dividerIds.forEach(remove)
       this.levelIds = []
       this.dividerIds = []
+      // Also clear any lingering syncLine from crosshair sync
+      if (this.syncLineId != null) {
+        remove(this.syncLineId)
+        this.syncLineId = null
+      }
     },
 
     clearChart () {
