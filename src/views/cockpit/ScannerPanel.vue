@@ -28,7 +28,7 @@
         :pagination="false"
         :row-key="rowKey"
         size="small"
-        :scroll="{ y: tableHeight }"
+        :scroll="{ x: 'max-content', y: tableHeight }"
         :locale="{ emptyText: loading ? 'Loading…' : emptyText }"
         :custom-row="makeRow"
         :row-class-name="rowClass"
@@ -48,11 +48,26 @@ export default {
     loading:        { type: Boolean, default: false },
     selectedTicker: { type: String,  default: '' },
     emptyText:      { type: String,  default: 'No data' },
-    rowKey:         { type: String,  default: 'ticker' },
-    tableHeight:    { type: Number,  default: 300 }
+    rowKey:         { type: String,  default: 'ticker' }
+  },
+  data () {
+    return { tableHeight: 260 }
   },
   computed: {
     count () { return this.rows.length || null }
+  },
+  mounted () {
+    this._ro = new ResizeObserver(entries => {
+      const h = entries[0].contentRect.height
+      this.tableHeight = Math.max(60, h - 32) // 32 ≈ thead row height
+    })
+    this.$nextTick(() => {
+      const body = this.$el.querySelector('.panel-body')
+      if (body) this._ro.observe(body)
+    })
+  },
+  beforeDestroy () {
+    if (this._ro) this._ro.disconnect()
   },
   methods: {
     makeRow (record) {
@@ -118,17 +133,23 @@ export default {
 }
 .panel-body :deep(.ant-table-wrapper) { flex: 1; overflow: hidden; }
 .panel-body :deep(.ant-table-thead > tr > th) {
-  padding: 4px 6px;
+  padding: 4px 4px;
   font-size: 11px;
   font-weight: 600;
   background: var(--panel-thead-bg, #f5f5f5);
   color: #666;
   border-bottom: 1px solid var(--panel-border, #e8e8e8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .panel-body :deep(.ant-table-tbody > tr > td) {
-  padding: 3px 6px;
+  padding: 3px 4px;
   font-size: 11px;
   border-bottom: 1px solid var(--panel-border-light, #f5f5f5);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .panel-body :deep(.ant-table-tbody > tr:hover > td) {
   background: rgba(24,144,255,0.04) !important;

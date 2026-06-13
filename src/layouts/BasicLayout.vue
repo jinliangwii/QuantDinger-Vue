@@ -60,7 +60,10 @@
       <template #footerRender>
         <div style="display: none;"></div>
       </template>
-      <router-view :key="refreshKey" />
+      <keep-alive>
+        <router-view v-if="$route.meta.keepAlive" :key="$route.name" />
+      </keep-alive>
+      <router-view v-if="!$route.meta.keepAlive" :key="refreshKey" />
     </pro-layout>
 
     <!-- 菜单底部 footer - 直接写，不依赖插槽 -->
