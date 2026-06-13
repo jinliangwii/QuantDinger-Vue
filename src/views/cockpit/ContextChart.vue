@@ -1,5 +1,13 @@
 <template>
   <div class="context-chart-root" :class="{ 'theme-dark': dark }">
+    <!-- Panel header -->
+    <div class="chart-header">
+      <span class="chart-tf-badge">{{ timeframe.toUpperCase() }}</span>
+      <span v-if="ticker" class="chart-ticker">{{ ticker }}</span>
+      <span v-if="bias" class="chart-bias-dot" :style="{ background: bias.color }" :title="bias.label"></span>
+      <span v-if="!ticker" class="chart-hint">select a ticker</span>
+    </div>
+
     <!-- Bias banner -->
     <div v-if="bias" class="bias-bar" :style="{ borderLeftColor: bias.color }">
       <div class="bias-main">
@@ -139,9 +147,10 @@ function ensureRegistered () {
 export default {
   name: 'ContextChart',
   props: {
-    ticker: { type: String, default: '' },
-    date:   { type: String, default: '' },
-    dark:   { type: Boolean, default: false }
+    ticker:    { type: String, default: '' },
+    date:      { type: String, default: '' },
+    timeframe: { type: String, default: '1m' },
+    dark:      { type: Boolean, default: false }
   },
   data () {
     return {
@@ -151,8 +160,9 @@ export default {
     }
   },
   watch: {
-    ticker (val) { if (val) { this.load() } else { this.clearChart() } },
-    date ()      { if (this.ticker) { this.load() } }
+    ticker (val)    { if (val) { this.load() } else { this.clearChart() } },
+    date ()         { if (this.ticker) { this.load() } },
+    timeframe ()    { if (this.ticker) { this.load() } }
   },
   mounted () {
     // Non-reactive instance properties (Vue 2 skips _ prefix in data())
@@ -180,7 +190,7 @@ export default {
       this.bias = null
 
       try {
-        const res = await getContext(this.ticker, this.date || null)
+        const res = await getContext(this.ticker, { date: this.date || null, timeframe: this.timeframe })
         if (!res || !res.success) {
           this.error = (res && res.error) || 'Context fetch failed'
           return
@@ -278,20 +288,42 @@ export default {
   display: flex;
   flex-direction: column;
   height: 100%;
-  min-height: 420px;
+  min-height: 180px;
 }
+
+/* ── Chart panel header ── */
+.chart-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  background: #fafafa;
+  border-bottom: 1px solid #e8e8e8;
+  flex-shrink: 0;
+  min-height: 26px;
+}
+.theme-dark .chart-header { background: #1a1a1a; border-color: #333; }
+.chart-tf-badge {
+  font-size: 11px; font-weight: 700;
+  color: #1890ff;
+  background: rgba(24,144,255,0.1);
+  padding: 1px 5px; border-radius: 3px;
+}
+.chart-ticker { font-size: 12px; font-weight: 600; color: #333; }
+.theme-dark .chart-ticker { color: #d1d4dc; }
+.chart-bias-dot { width: 7px; height: 7px; border-radius: 50%; }
+.chart-hint { font-size: 11px; color: #bbb; }
 
 /* ── Bias banner ── */
 .bias-bar {
   display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  padding: 10px 14px;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 10px;
   background: rgba(0,0,0,0.03);
-  border-left: 4px solid #888;
-  border-radius: 0 6px 6px 0;
-  margin-bottom: 10px;
+  border-left: 3px solid #888;
   flex-wrap: wrap;
+  flex-shrink: 0;
 }
 .theme-dark .bias-bar { background: rgba(255,255,255,0.04); }
 

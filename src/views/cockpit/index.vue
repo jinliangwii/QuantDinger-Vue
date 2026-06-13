@@ -1,15 +1,17 @@
 <template>
-  <div class="cockpit-page" :class="{ 'theme-dark': isDarkTheme }">
-    <!-- Page header -->
-    <div class="page-header">
-      <div class="page-header-left">
-        <h2 class="page-title">
-          <a-icon type="radar-chart" class="title-icon" />
-          Pre-market Cockpit
-        </h2>
-        <p class="page-subtitle">Selection layer — ranked gap-and-go candidates</p>
+  <div class="cockpit-root" :class="{ 'cockpit-dark': isDarkTheme }">
+
+    <!-- ── Top bar ── -->
+    <div class="cockpit-topbar">
+      <div class="topbar-left">
+        <span class="topbar-logo">Seneca Cockpit</span>
+        <span v-if="selectedTicker" class="topbar-ticker">{{ selectedTicker }}</span>
+        <span class="topbar-market" :class="marketOpen ? 'market-open' : 'market-closed'">
+          {{ marketOpen ? 'Market Open' : 'Market Closed' }}
+        </span>
+        <span v-if="dataDate" class="topbar-date">{{ dataDate }}</span>
       </div>
-      <div class="page-header-right">
+      <div class="topbar-right">
         <a-radio-group v-model="mode" button-style="solid" size="small" @change="onModeChange">
           <a-radio-button value="live">Live</a-radio-button>
           <a-radio-button value="history">History</a-radio-button>
@@ -19,353 +21,332 @@
           v-model="selectedDate"
           size="small"
           format="YYYY-MM-DD"
-          style="margin-left: 8px; width: 140px"
+          style="width: 130px"
           @change="onDateChange"
         />
-        <a-button size="small" style="margin-left: 8px" :loading="loading" @click="refresh">
-          <a-icon type="reload" />
-        </a-button>
-        <span v-if="lastFetched" class="last-fetched">{{ lastFetched }}</span>
       </div>
     </div>
 
-    <!-- KPI strip -->
-    <div class="kpi-row">
-      <div class="kpi-card">
-        <div class="kpi-icon" style="color: #1890ff; background: rgba(24,144,255,0.1)">
-          <a-icon type="unordered-list" />
-        </div>
-        <div class="kpi-body">
-          <div class="kpi-label">Candidates</div>
-          <div class="kpi-value">{{ candidates.length || '—' }}</div>
-        </div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-icon" style="color: #52c41a; background: rgba(82,196,26,0.1)">
-          <a-icon type="trophy" />
-        </div>
-        <div class="kpi-body">
-          <div class="kpi-label">Top score</div>
-          <div class="kpi-value">{{ topScore }}</div>
-        </div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-icon" :style="marketOpen ? 'color:#52c41a;background:rgba(82,196,26,0.1)' : 'color:#faad14;background:rgba(250,173,20,0.1)'">
-          <a-icon :type="marketOpen ? 'check-circle' : 'clock-circle'" />
-        </div>
-        <div class="kpi-body">
-          <div class="kpi-label">Market</div>
-          <div class="kpi-value">{{ marketOpen ? 'Open' : 'Closed' }}</div>
-        </div>
-      </div>
-      <div class="kpi-card" v-if="dataDate">
-        <div class="kpi-icon" style="color: #722ed1; background: rgba(114,46,209,0.1)">
-          <a-icon type="calendar" />
-        </div>
-        <div class="kpi-body">
-          <div class="kpi-label">Data date</div>
-          <div class="kpi-value">{{ dataDate }}</div>
-        </div>
-      </div>
-    </div>
+    <!-- ── Main panel grid ── -->
+    <splitpanes class="cockpit-body">
 
-    <!-- Alerts -->
-    <a-alert
-      v-if="mode === 'live' && !marketOpen"
-      type="warning"
-      :message="`Market closed — showing last trading session (${dataDate})`"
-      show-icon
-      style="margin-bottom: 12px"
-    />
-    <a-alert
-      v-if="error"
-      type="error"
-      :message="error"
-      closable
-      style="margin-bottom: 12px"
-      @close="error = null"
-    />
+      <!-- Left column: scanner panels -->
+      <pane :size="leftSize" min-size="18" class="col-pane">
+        <splitpanes horizontal class="h-full">
 
-    <!-- Main tabs -->
-    <a-tabs v-model="activeTab" :animated="false">
+          <!-- YC Scanner -->
+          <pane min-size="15">
+            <scanner-panel
+              title="YC Scanner"
+              dot-color="#1890ff"
+              :columns="ycColumns"
+              :rows="ycCandidates"
+              :loading="ycLoading"
+              :selected-ticker="selectedTicker"
+              empty-text="No pre-market candidates"
+              @select="selectTicker"
+              @refresh="refreshYC"
+            >
+              <template #rank="{ index }">{{ index + 1 }}</template>
+              <template #ticker="{ text }"><strong>{{ text }}</strong></template>
+              <template #score="{ text, record }">
+                <span class="score-badge" :class="scoreBadgeClass(record.score)">{{ record.score.toFixed(1) }}</span>
+              </template>
+              <template #gap_pct="{ text }"><span class="pos">+{{ text.toFixed(1) }}%</span></template>
+              <template #rvol="{ text }"><span :class="text >= 5 ? 'pos' : ''">{{ text.toFixed(1) }}x</span></template>
+              <template #vol="{ text }">{{ fmtVol(text) }}</template>
+              <template #float="{ text }">{{ fmtFloat(text) }}</template>
+            </scanner-panel>
+          </pane>
 
-      <!-- ── Watchlist tab ── -->
-      <a-tab-pane key="watchlist" tab="Watchlist">
-        <a-table
-          :columns="columns"
-          :data-source="candidates"
-          :loading="loading"
-          :pagination="false"
-          row-key="ticker"
-          size="small"
-          :locale="{ emptyText: emptyText }"
-          :custom-row="makeRow"
-          :row-class-name="rowClass"
-        >
-          <span slot="rank" slot-scope="text, record, index">{{ index + 1 }}</span>
-          <span slot="ticker" slot-scope="text"><strong>{{ text }}</strong></span>
-          <span slot="score" slot-scope="text, record">
-            <a-tooltip :title="scoreTooltip(record)">
-              <span class="score-badge" :class="scoreBadgeClass(record.score)">
-                {{ record.score.toFixed(2) }}
-              </span>
-            </a-tooltip>
-          </span>
-          <span slot="gap_pct" slot-scope="text">
-            <span class="positive">+{{ text.toFixed(1) }}%</span>
-          </span>
-          <span slot="rvol" slot-scope="text">
-            <span :class="text >= 5 ? 'positive' : ''">{{ text.toFixed(1) }}x</span>
-          </span>
-          <span slot="premarket_vol" slot-scope="text">{{ formatVol(text) }}</span>
-          <span slot="float_shares" slot-scope="text, record">
-            <span :class="{ 'stale-flag': record.float_stale }">
-              {{ formatFloat(text) }}
-              <a-tooltip v-if="record.float_stale" title="Float data is stale (>30 days)">
-                <a-icon type="warning" style="color: #faad14; margin-left: 4px" />
-              </a-tooltip>
-            </span>
-          </span>
-          <span slot="price" slot-scope="text">${{ text.toFixed(2) }}</span>
-          <span slot="prev_hl" slot-scope="text, record">
-            <span v-if="record.prev_high" class="level-resistance">${{ record.prev_high.toFixed(2) }}</span>
-            <span v-if="record.prev_high && record.prev_low" class="level-sep"> / </span>
-            <span v-if="record.prev_low" class="level-support">${{ record.prev_low.toFixed(2) }}</span>
-            <span v-if="!record.prev_high && !record.prev_low" class="muted">—</span>
-          </span>
-          <span slot="key_dollars" slot-scope="text, record">
-            <span v-if="record.whole_dollar_above" class="level-resistance">↑${{ record.whole_dollar_above }}</span>
-            <span v-if="record.whole_dollar_below" class="level-support"> ↓${{ record.whole_dollar_below }}</span>
-            <span v-if="!record.whole_dollar_above && !record.whole_dollar_below" class="muted">—</span>
-          </span>
-        </a-table>
-        <div v-if="!loading && candidates.length" class="cockpit-footer">
-          {{ candidates.length }} candidate{{ candidates.length !== 1 ? 's' : '' }}
-          <span v-if="mode === 'history' && historyDate"> for {{ historyDate }}</span>
-          <span v-else-if="mode === 'live'"> · auto-refresh every 2 min{{ marketOpen ? '' : ' (paused — market closed)' }}</span>
-          <span v-if="selectedTicker" class="footer-hint"> · click a row to view context</span>
-        </div>
-      </a-tab-pane>
+          <!-- Most Active -->
+          <pane min-size="15">
+            <scanner-panel
+              title="Most Active"
+              dot-color="#52c41a"
+              :columns="moverColumns"
+              :rows="movers.most_actives"
+              :loading="moversLoading"
+              :selected-ticker="selectedTicker"
+              empty-text="No data"
+              @select="selectTicker"
+              @refresh="refreshMovers"
+            >
+              <template #rank="{ record }">{{ record.rank }}</template>
+              <template #ticker="{ text }"><strong>{{ text }}</strong></template>
+              <template #price="{ text }">${{ text.toFixed(2) }}</template>
+              <template #change_pct="{ text }">
+                <span :class="text >= 0 ? 'pos' : 'neg'">{{ text >= 0 ? '+' : '' }}{{ text.toFixed(2) }}%</span>
+              </template>
+              <template #volume="{ text }">{{ fmtVol(text) }}</template>
+            </scanner-panel>
+          </pane>
 
-      <!-- ── Context tab ── -->
-      <a-tab-pane key="context" tab="Context">
-        <context-chart
-          :ticker="selectedTicker"
-          :date="historyDate || ''"
-          :dark="isDarkTheme"
-          style="min-height: 480px"
-        />
-      </a-tab-pane>
+          <!-- Top Gainers -->
+          <pane min-size="15">
+            <scanner-panel
+              title="Top Gainers"
+              dot-color="#f5a623"
+              :columns="moverColumns"
+              :rows="movers.top_gainers"
+              :loading="moversLoading"
+              :selected-ticker="selectedTicker"
+              empty-text="No data"
+              @select="selectTicker"
+              @refresh="refreshMovers"
+            >
+              <template #rank="{ record }">{{ record.rank }}</template>
+              <template #ticker="{ text }"><strong>{{ text }}</strong></template>
+              <template #price="{ text }">${{ text.toFixed(2) }}</template>
+              <template #change_pct="{ text }">
+                <span :class="text >= 0 ? 'pos' : 'neg'">{{ text >= 0 ? '+' : '' }}{{ text.toFixed(2) }}%</span>
+              </template>
+              <template #volume="{ text }">{{ fmtVol(text) }}</template>
+            </scanner-panel>
+          </pane>
 
-      <!-- ── Signals tab (deferred) ── -->
-      <a-tab-pane key="signals" tab="Signals (M2)">
-        <div class="coming-soon">
-          <a-icon type="bell" class="coming-soon-icon" />
-          <p>Real-time trigger alerts — coming in M2</p>
-        </div>
-      </a-tab-pane>
+        </splitpanes>
+      </pane>
 
-    </a-tabs>
+      <!-- Right column: charts -->
+      <pane min-size="30" class="col-pane">
+        <splitpanes horizontal class="h-full">
+
+          <pane min-size="15">
+            <context-chart
+              :ticker="selectedTicker"
+              :date="historyDate || ''"
+              timeframe="1m"
+              :dark="isDarkTheme"
+              class="h-full"
+            />
+          </pane>
+
+          <pane min-size="15">
+            <context-chart
+              :ticker="selectedTicker"
+              :date="historyDate || ''"
+              timeframe="5m"
+              :dark="isDarkTheme"
+              class="h-full"
+            />
+          </pane>
+
+          <pane min-size="15">
+            <context-chart
+              :ticker="selectedTicker"
+              :date="historyDate || ''"
+              timeframe="1d"
+              :dark="isDarkTheme"
+              class="h-full"
+            />
+          </pane>
+
+        </splitpanes>
+      </pane>
+
+    </splitpanes>
+
   </div>
 </template>
 
 <script>
 import moment from 'moment'
+import { Splitpanes, Pane } from 'splitpanes'
+import 'splitpanes/dist/splitpanes.css'
 import { baseMixin } from '@/store/app-mixin'
-import { getWatchlist, getWatchlistHistory } from '@/api/cockpit'
+import { getWatchlist, getWatchlistHistory, getMovers } from '@/api/cockpit'
+import ScannerPanel from './ScannerPanel.vue'
 import ContextChart from './ContextChart.vue'
 
-const COLUMNS = [
-  { title: '#',           key: 'rank',          scopedSlots: { customRender: 'rank' },          width: 40 },
-  { title: 'Ticker',      dataIndex: 'ticker',   scopedSlots: { customRender: 'ticker' },         width: 80 },
-  { title: 'Score',       dataIndex: 'score',    scopedSlots: { customRender: 'score' },          width: 80, defaultSortOrder: 'descend', sorter: (a, b) => a.score - b.score },
-  { title: 'Gap %',       dataIndex: 'gap_pct',  scopedSlots: { customRender: 'gap_pct' },        width: 80, sorter: (a, b) => a.gap_pct - b.gap_pct },
-  { title: 'RVOL',        dataIndex: 'rvol',     scopedSlots: { customRender: 'rvol' },           width: 70, sorter: (a, b) => a.rvol - b.rvol },
-  { title: 'Pre-mkt Vol', dataIndex: 'premarket_vol', scopedSlots: { customRender: 'premarket_vol' }, width: 100, sorter: (a, b) => a.premarket_vol - b.premarket_vol },
-  { title: 'Float',       dataIndex: 'float_shares',  scopedSlots: { customRender: 'float_shares' },  width: 90,  sorter: (a, b) => a.float_shares - b.float_shares },
-  { title: 'Price',       dataIndex: 'price',    scopedSlots: { customRender: 'price' },          width: 70, sorter: (a, b) => a.price - b.price },
-  { title: 'Prev H/L',   key: 'prev_hl',        scopedSlots: { customRender: 'prev_hl' },        width: 110 },
-  { title: 'Key $',       key: 'key_dollars',    scopedSlots: { customRender: 'key_dollars' },    width: 90 }
+const YC_COLUMNS = [
+  { title: '#',     key: 'rank',          scopedSlots: { customRender: 'rank' },      width: 28 },
+  { title: 'Tick',  dataIndex: 'ticker',  scopedSlots: { customRender: 'ticker' },    width: 52 },
+  { title: 'Score', dataIndex: 'score',   scopedSlots: { customRender: 'score' },     width: 52, sorter: (a, b) => a.score - b.score, defaultSortOrder: 'descend' },
+  { title: 'Gap%',  dataIndex: 'gap_pct', scopedSlots: { customRender: 'gap_pct' },   width: 50, sorter: (a, b) => a.gap_pct - b.gap_pct },
+  { title: 'RVOL',  dataIndex: 'rvol',    scopedSlots: { customRender: 'rvol' },      width: 44, sorter: (a, b) => a.rvol - b.rvol },
+  { title: 'Vol',   dataIndex: 'premarket_vol', scopedSlots: { customRender: 'vol' }, width: 50, sorter: (a, b) => a.premarket_vol - b.premarket_vol },
+  { title: 'Float', dataIndex: 'float_shares',  scopedSlots: { customRender: 'float' }, width: 46 },
+]
+
+const MOVER_COLUMNS = [
+  { title: '#',    key: 'rank',         scopedSlots: { customRender: 'rank' },       width: 28 },
+  { title: 'Tick', dataIndex: 'ticker', scopedSlots: { customRender: 'ticker' },     width: 56 },
+  { title: 'Price',dataIndex: 'price',  scopedSlots: { customRender: 'price' },      width: 54, sorter: (a, b) => a.price - b.price },
+  { title: 'Chg%', dataIndex: 'change_pct', scopedSlots: { customRender: 'change_pct' }, width: 58, sorter: (a, b) => a.change_pct - b.change_pct },
+  { title: 'Vol',  dataIndex: 'volume', scopedSlots: { customRender: 'volume' },     width: 50, sorter: (a, b) => a.volume - b.volume },
 ]
 
 const REFRESH_MS = 120_000
 
 export default {
   name: 'CockpitPage',
-  components: { ContextChart },
+  components: { Splitpanes, Pane, ScannerPanel, ContextChart },
   mixins: [baseMixin],
+
   data () {
     return {
-      candidates: [],
-      loading: false,
-      error: null,
-      mode: 'live',
-      activeTab: 'watchlist',
-      selectedDate: null,
-      historyDate: null,
-      lastFetched: null,
-      marketStatus: 'live',
-      dataDate: null,
-      columns: COLUMNS,
-      _timer: null,
-      selectedTicker: ''
+      selectedTicker: '',
+      ycCandidates:  [],
+      ycLoading:     false,
+      movers:        { most_actives: [], top_gainers: [], top_losers: [] },
+      moversLoading: false,
+      mode:          'live',
+      selectedDate:  null,
+      historyDate:   null,
+      marketStatus:  'closed',
+      dataDate:      null,
+      leftSize:      28,
+      ycColumns:     YC_COLUMNS,
+      moverColumns:  MOVER_COLUMNS,
     }
   },
+
   computed: {
     isDarkTheme () { return this.navTheme === 'dark' || this.navTheme === 'realdark' },
     marketOpen ()  { return this.marketStatus !== 'closed' },
-    topScore () {
-      return this.candidates.length ? this.candidates[0].score.toFixed(1) : '—'
-    },
-    emptyText () {
-      if (this.loading) return 'Loading...'
-      return this.mode === 'live'
-        ? 'No candidates — run pre-market (before 9:30am ET)'
-        : 'No candidates for this date'
-    }
   },
-  mounted () { this.refresh() },
-  beforeDestroy () { this._clearTimer() },
+
+  mounted () {
+    this.ycTimer    = null
+    this.moverTimer = null
+    this.refreshYC()
+    this.refreshMovers()
+  },
+
+  beforeDestroy () {
+    clearInterval(this.ycTimer)
+    clearInterval(this.moverTimer)
+  },
+
   watch: {
-    mode (val) {
-      this._clearTimer()
-      this.candidates = []
+    mode () {
+      clearInterval(this.ycTimer)
+      clearInterval(this.moverTimer)
+      this.ycCandidates  = []
+      this.movers        = { most_actives: [], top_gainers: [], top_losers: [] }
       this.selectedTicker = ''
-      if (val === 'live') this.refresh()
+      this.refreshYC()
+      if (this.mode === 'live') { this.refreshMovers() }
     }
   },
+
   methods: {
-    async refresh () {
-      this.loading = true
-      this.error = null
+    selectTicker (ticker) { this.selectedTicker = ticker },
+    onModeChange () {},
+    onDateChange () { if (this.selectedDate) { this.refreshYC() } },
+
+    async refreshYC () {
+      this.ycLoading = true
       try {
         let res
         if (this.mode === 'history' && this.selectedDate) {
-          const dateStr = moment(this.selectedDate).format('YYYY-MM-DD')
-          res = await getWatchlistHistory(dateStr)
-          this.historyDate = dateStr
+          const d = moment(this.selectedDate).format('YYYY-MM-DD')
+          res = await getWatchlistHistory(d)
+          this.historyDate = d
         } else {
           res = await getWatchlist()
           this.historyDate = null
         }
         if (res && res.success) {
-          this.candidates = res.data.candidates || []
-          this.marketStatus = res.data.market_status || 'live'
-          this.dataDate = res.data.data_date || null
-          this.lastFetched = 'Updated ' + moment().format('HH:mm:ss')
-          this._startTimer()
-        } else {
-          this.error = (res && res.error) || 'Fetch failed'
+          this.ycCandidates = res.data.candidates || []
+          this.marketStatus = res.data.market_status || 'closed'
+          this.dataDate     = res.data.data_date || null
+          if (this.mode === 'live' && this.marketOpen) {
+            clearInterval(this.ycTimer)
+            this.ycTimer = setInterval(() => this.refreshYC(), REFRESH_MS)
+          }
         }
-      } catch (e) {
-        this.error = e.message || 'Network error'
-      } finally {
-        this.loading = false
-      }
+      } catch (_) {} finally { this.ycLoading = false }
     },
-    selectCandidate (record) {
-      this.selectedTicker = record.ticker
-      this.activeTab = 'context'
+
+    async refreshMovers () {
+      if (this.mode !== 'live') { return }
+      this.moversLoading = true
+      try {
+        const res = await getMovers(20)
+        if (res && res.success) {
+          this.movers = res.data
+          clearInterval(this.moverTimer)
+          this.moverTimer = setInterval(() => this.refreshMovers(), REFRESH_MS)
+        }
+      } catch (_) {} finally { this.moversLoading = false }
     },
-    makeRow (record) {
-      return {
-        style: { cursor: 'pointer' },
-        on: { click: () => this.selectCandidate(record) }
-      }
-    },
-    rowClass (record) {
-      return this.selectedTicker === record.ticker ? 'row-selected' : ''
-    },
-    _startTimer () {
-      this._clearTimer()
-      if (this.mode !== 'live' || !this.marketOpen) return
-      this._timer = setInterval(() => this.refresh(), REFRESH_MS)
-    },
-    _clearTimer () {
-      if (this._timer) { clearInterval(this._timer); this._timer = null }
-    },
-    onModeChange () {},
-    onDateChange () { if (this.selectedDate) this.refresh() },
-    formatVol (n) {
-      if (!n) return '—'
-      if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M'
-      if (n >= 1e3) return (n / 1e3).toFixed(0) + 'K'
+
+    fmtVol (n) {
+      if (!n) { return '—' }
+      if (n >= 1e6) { return (n / 1e6).toFixed(1) + 'M' }
+      if (n >= 1e3) { return (n / 1e3).toFixed(0) + 'K' }
       return String(n)
     },
-    formatFloat (n) {
-      if (!n) return '—'
+    fmtFloat (n) {
+      if (!n) { return '—' }
       return n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : String(n)
     },
-    scoreTooltip (record) {
-      const c = record.score_components || {}
-      return `gap ${c.gap_pct}% × rvol ${c.rvol}x × float-tier ${c.float_tier} = ${c.raw}`
-    },
-    scoreBadgeClass (score) {
-      if (score >= 100) return 'score-high'
-      if (score >= 40)  return 'score-mid'
-      return 'score-low'
+    scoreBadgeClass (s) {
+      return s >= 100 ? 'score-high' : s >= 40 ? 'score-mid' : 'score-low'
     }
   }
 }
 </script>
 
 <style scoped>
-.cockpit-page { padding: 16px 24px; min-height: 100%; }
+.cockpit-root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  background: #f0f2f5;
+}
+.cockpit-dark { background: #111; }
 
-/* ── Header ── */
-.page-header {
-  display: flex; align-items: flex-start; justify-content: space-between;
-  margin-bottom: 20px; flex-wrap: wrap; gap: 12px;
+/* ── Top bar ── */
+.cockpit-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  height: 32px;
+  flex-shrink: 0;
+  background: #001529;
+  color: #fff;
+  gap: 12px;
 }
-.page-header-left { flex: 1; }
-.page-title { margin: 0 0 4px; font-size: 20px; font-weight: 600; }
-.title-icon { margin-right: 8px; }
-.page-subtitle { margin: 0; font-size: 13px; color: #888; }
-.page-header-right { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
-.last-fetched { font-size: 11px; color: #888; margin-left: 6px; }
+.topbar-left  { display: flex; align-items: center; gap: 10px; }
+.topbar-right { display: flex; align-items: center; gap: 8px; }
+.topbar-logo   { font-size: 13px; font-weight: 700; color: #1890ff; letter-spacing: 0.04em; }
+.topbar-ticker { font-size: 14px; font-weight: 700; color: #fff; }
+.topbar-date   { font-size: 11px; color: #888; }
+.market-open   { font-size: 11px; color: #52c41a; }
+.market-closed { font-size: 11px; color: #faad14; }
 
-/* ── KPI strip ── */
-.kpi-row { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
-.kpi-card {
-  display: flex; align-items: center; gap: 10px;
-  background: #fff; border: 1px solid #f0f0f0; border-radius: 8px;
-  padding: 10px 16px; min-width: 120px; flex: 1;
+/* ── Body fills remaining height ── */
+.cockpit-body { flex: 1; min-height: 0; }
+.h-full { height: 100%; }
+.col-pane { height: 100%; overflow: hidden; }
+
+/* ── Splitpanes gutter styling ── */
+:deep(.splitpanes__splitter) {
+  background: #d9d9d9 !important;
+  z-index: 1;
+  transition: background 0.15s;
 }
-.theme-dark .kpi-card { background: #1f1f1f; border-color: #333; }
-.kpi-icon {
-  width: 36px; height: 36px; border-radius: 8px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 18px; flex-shrink: 0;
+:deep(.splitpanes__splitter:hover),
+:deep(.splitpanes__splitter:active) { background: #1890ff !important; }
+.cockpit-dark :deep(.splitpanes__splitter) { background: #2a2a2a !important; }
+
+:deep(.splitpanes--horizontal > .splitpanes__splitter) {
+  height: 4px !important; min-height: 4px; cursor: row-resize;
 }
-.kpi-body { line-height: 1.3; }
-.kpi-label { font-size: 11px; color: #888; }
-.kpi-value { font-size: 18px; font-weight: 600; }
+:deep(.splitpanes--vertical > .splitpanes__splitter) {
+  width: 4px !important; min-width: 4px; cursor: col-resize;
+}
 
 /* ── Score badges ── */
-.score-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 12px; }
+.score-badge { display: inline-block; padding: 1px 4px; border-radius: 3px; font-weight: 600; font-size: 11px; }
 .score-high { background: #f6ffed; color: #389e0d; border: 1px solid #b7eb8f; }
 .score-mid  { background: #fffbe6; color: #d48806; border: 1px solid #ffe58f; }
 .score-low  { background: #fff1f0; color: #cf1322; border: 1px solid #ffa39e; }
-
-.positive { color: #389e0d; font-weight: 500; }
-.stale-flag { opacity: 0.75; }
-.muted { color: #bbb; }
-.level-resistance { color: #cf1322; font-weight: 500; }
-.level-support    { color: #389e0d; font-weight: 500; }
-.level-sep        { color: #bbb; }
-
-/* ── Selected row highlight ── */
-:deep(.row-selected td) { background: rgba(24, 144, 255, 0.06) !important; }
-
-/* ── Footer ── */
-.cockpit-footer { margin-top: 8px; font-size: 12px; color: #888; text-align: right; }
-.footer-hint { font-style: italic; }
-
-/* ── Coming soon ── */
-.coming-soon {
-  display: flex; flex-direction: column; align-items: center;
-  justify-content: center; padding: 60px 24px; color: #bbb; text-align: center;
-}
-.coming-soon-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.4; }
-.coming-soon p { font-size: 14px; margin: 0; }
+.pos { color: #389e0d; font-weight: 500; }
+.neg { color: #cf1322; font-weight: 500; }
 </style>
