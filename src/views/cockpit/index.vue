@@ -197,6 +197,36 @@ export default {
           sorter: (a, b) => a.float_shares - b.float_shares,
           customRender: (text) => fmtFloat(text)
         },
+        {
+          title: 'Price', dataIndex: 'price', width: 52,
+          sorter: (a, b) => a.price - b.price,
+          customRender: (text) => text ? '$' + text.toFixed(2) : '—'
+        },
+        {
+          title: 'Prev H/L', key: 'prev_hl', width: 100,
+          customRender: (text, record) => {
+            const hi = record.prev_high
+            const lo = record.prev_low
+            if (!hi && !lo) return '—'
+            const parts = []
+            if (hi) parts.push(h('span', { style: { color: '#cf1322', fontWeight: 500 } }, ['$' + hi.toFixed(2)]))
+            if (hi && lo) parts.push(h('span', { style: { color: '#bbb' } }, [' / ']))
+            if (lo) parts.push(h('span', { style: { color: '#389e0d', fontWeight: 500 } }, ['$' + lo.toFixed(2)]))
+            return h('span', parts)
+          }
+        },
+        {
+          title: 'Key $', key: 'key_dollars', width: 90,
+          customRender: (text, record) => {
+            const above = record.whole_dollar_above
+            const below = record.whole_dollar_below
+            if (!above && !below) return '—'
+            const parts = []
+            if (above) parts.push(h('span', { style: { color: '#cf1322', fontWeight: 500 } }, ['↑$' + above]))
+            if (below) parts.push(h('span', { style: { color: '#389e0d', fontWeight: 500 } }, [' ↓$' + below]))
+            return h('span', parts)
+          }
+        },
       ]
     },
 
