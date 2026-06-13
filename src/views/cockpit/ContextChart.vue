@@ -383,9 +383,25 @@ export default {
       })
     } catch (_) {}
 
-    // ── Wheel event forwarder (ensure splitpanes doesn't eat scroll) ──
+    // ── Wheel event forwarder ──
+    // klinecharts listens for wheel on its internal canvas, but the y-axis
+    // (price) area is rendered separately and may not forward events there.
+    // Capture wheel on the whole container and dispatch to the chart element
+    // so scrolling on the price axis also zooms the candle width.
     this._onWheel = (e) => {
-      // klinecharts handles wheel natively on its canvas
+      if (!this.chart) return
+      try {
+        e.preventDefault()
+        const dom = this.chart.getDom()
+        const target = (dom && dom.chart) || this.$refs.chartEl
+        if (target && target !== e.target) {
+          target.dispatchEvent(new WheelEvent('wheel', {
+            deltaX: e.deltaX, deltaY: e.deltaY, deltaMode: e.deltaMode,
+            clientX: e.clientX, clientY: e.clientY,
+            ctrlKey: e.ctrlKey, bubbles: true
+          }))
+        }
+      } catch (_) {}
     }
     if (this.$refs.wrapEl) {
       this.$refs.wrapEl.addEventListener('wheel', this._onWheel, { passive: false })
