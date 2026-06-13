@@ -7,3 +7,8 @@ export function getWatchlist () {
 export function getWatchlistHistory (date) {
   return request({ url: '/api/cockpit/watchlist/history', method: 'get', params: { date } })
 }
+
+export function getLevels (ticker, date) {
+  const params = date ? { date } : {}
+  return request({ url: `/api/cockpit/levels/${ticker}`, method: 'get', params })
+}
