@@ -787,7 +787,6 @@ export default {
 
         // ── Pattern overlays ──
         const patterns = ctx.patterns || []
-        const anchorTs = candles[0].timestamp
         for (const pat of patterns) {
           if (pat.type !== 'bull_flag') continue
           const pts = [
