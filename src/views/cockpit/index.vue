@@ -264,8 +264,27 @@ export default {
   mounted () {
     this.ycTimer    = null
     this.moverTimer = null
+    // Initial load — only runs once because keepAlive: true keeps the component alive
     this.refreshYC()
     this.refreshMovers()
+  },
+
+  activated () {
+    // Re-entered from keep-alive: restart auto-refresh timers if they lapsed
+    if (!this.ycTimer && this.mode === 'live' && this.marketOpen) {
+      this.ycTimer = setInterval(() => this.refreshYC(), REFRESH_MS)
+    }
+    if (!this.moverTimer && this.mode === 'live') {
+      this.moverTimer = setInterval(() => this.refreshMovers(), REFRESH_MS)
+    }
+  },
+
+  deactivated () {
+    // Navigating away — pause timers, component state is preserved
+    clearInterval(this.ycTimer)
+    clearInterval(this.moverTimer)
+    this.ycTimer    = null
+    this.moverTimer = null
   },
 
   beforeDestroy () {

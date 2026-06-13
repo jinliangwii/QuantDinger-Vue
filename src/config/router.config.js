@@ -99,7 +99,7 @@ export const asyncRouterMap = [
         path: '/cockpit',
         name: 'Cockpit',
         component: () => import('@/views/cockpit'),
-        meta: { title: 'Cockpit', keepAlive: false, icon: 'radar-chart', permission: ['dashboard'] }
+        meta: { title: 'Cockpit', keepAlive: true, icon: 'radar-chart', permission: ['dashboard'] }
       },
       // 旧路由兼容：图表与指标 → 指标 IDE
       {
