@@ -299,6 +299,157 @@ function ensureRegistered () {
       }
     })
   } catch (_) {}
+
+  // ── Bull flag pattern overlay ──
+  try {
+    registerOverlay({
+      name: 'bullFlag',
+      totalStep: 1, lock: true,
+      needDefaultPointFigure: false, needDefaultXAxisFigure: false, needDefaultYAxisFigure: false,
+      checkEventOn: () => false,
+      createPointFigures ({ coordinates, overlay, bounding }) {
+        if (!coordinates || coordinates.length < 8) return []
+        const { pattern } = overlay.extendData || {}
+        if (!pattern) return []
+
+        const W = (bounding && bounding.width) ? bounding.width : 3000
+        const H = (bounding && bounding.height) ? bounding.height : 3000
+
+        // coordinates mapping:
+        // [0] = pole.start  @ pole.low
+        // [1] = pole.end    @ pole.high
+        // [2] = flag.end    @ flag.high
+        // [3] = flag.end    @ flag.low
+        // [4] = anchor      @ entry.price
+        // [5] = anchor      @ stop.price
+        // [6] = anchor      @ target.price
+        // [7] = breakout    @ breakout.price
+        const xPoleEnd   = coordinates[1].x
+        const xFlagEnd   = coordinates[2].x
+        const yFlagHigh  = coordinates[2].y
+        const yFlagLow   = coordinates[3].y
+        const yEntry     = coordinates[4].y
+        const yStop      = coordinates[5].y
+        const yTarget    = coordinates[6].y
+        const xLabel     = coordinates[7].x
+        const yLabel     = coordinates[7].y
+
+        const BLUE      = '#2979ff'
+        const BLUE_FILL = 'rgba(41,121,255,0.10)'
+        const YELLOW    = '#ffc107'
+        const RED       = '#ef5350'
+        const GREEN     = '#26a69a'
+        const DASH      = [6, 3]
+
+        const isConfirmed = pattern.status === 'confirmed'
+        const statusColor = isConfirmed ? GREEN : '#ffa726'
+        const statusLabel = isConfirmed ? 'Bull Flag' : 'Bull Flag (forming)'
+        const rr = pattern.risk_reward ? (pattern.risk_reward.ratio || 0) : 0
+        const rrLabel = rr > 0 ? `R:R ${rr}` : ''
+        const rrColor = rr >= 2 ? GREEN : rr >= 1 ? YELLOW : RED
+
+        const figs = []
+
+        // 1. Pole line — diagonal from pole low to pole high
+        figs.push({
+          key: 'pole',
+          type: 'line',
+          attrs: { coordinates: [coordinates[0], coordinates[1]] },
+          styles: { style: 'solid', size: 2, color: BLUE },
+          ignoreEvent: true
+        })
+
+        // 2. Flag zone — semi-transparent rectangle
+        const fx = Math.min(xPoleEnd, xFlagEnd)
+        const fw = Math.max(0, xFlagEnd - xPoleEnd)
+        const fy = Math.min(yFlagHigh, yFlagLow)
+        const fh = Math.max(0, Math.abs(yFlagLow - yFlagHigh))
+        figs.push({
+          key: 'flagZone',
+          type: 'rect',
+          attrs: { x: fx, y: fy, width: fw, height: fh, r: 2 },
+          styles: { style: 'fill', color: BLUE_FILL, borderColor: 'rgba(41,121,255,0.25)', borderSize: 1 },
+          ignoreEvent: true
+        })
+
+        // 3. Entry line (yellow dashed)
+        if (yEntry > 0 && yEntry < H) {
+          figs.push({
+            key: 'entry',
+            type: 'line',
+            attrs: { coordinates: [{ x: 0, y: yEntry }, { x: W, y: yEntry }] },
+            styles: { style: 'dashed', dashedValue: DASH, size: 1.5, color: YELLOW },
+            ignoreEvent: true
+          })
+          figs.push({
+            key: 'entryLabel',
+            type: 'text',
+            attrs: { x: 4, y: yEntry - 3, text: `Entry $${pattern.entry.price.toFixed(2)}`, align: 'left', baseline: 'bottom' },
+            styles: { color: YELLOW, size: 10, weight: 'bold', backgroundColor: 'rgba(19,23,34,0.75)' },
+            ignoreEvent: true
+          })
+        }
+
+        // 4. Stop line (red dashed)
+        if (yStop > 0 && yStop < H) {
+          figs.push({
+            key: 'stop',
+            type: 'line',
+            attrs: { coordinates: [{ x: 0, y: yStop }, { x: W, y: yStop }] },
+            styles: { style: 'dashed', dashedValue: DASH, size: 1.5, color: RED },
+            ignoreEvent: true
+          })
+          figs.push({
+            key: 'stopLabel',
+            type: 'text',
+            attrs: { x: 4, y: yStop - 3, text: `SL $${pattern.stop.price.toFixed(2)}`, align: 'left', baseline: 'bottom' },
+            styles: { color: RED, size: 10, weight: 'bold', backgroundColor: 'rgba(19,23,34,0.75)' },
+            ignoreEvent: true
+          })
+        }
+
+        // 5. Target line (green dashed)
+        if (yTarget > 0 && yTarget < H) {
+          figs.push({
+            key: 'target',
+            type: 'line',
+            attrs: { coordinates: [{ x: 0, y: yTarget }, { x: W, y: yTarget }] },
+            styles: { style: 'dashed', dashedValue: DASH, size: 1.5, color: GREEN },
+            ignoreEvent: true
+          })
+          figs.push({
+            key: 'targetLabel',
+            type: 'text',
+            attrs: { x: 4, y: yTarget - 3, text: `TP $${pattern.target.price.toFixed(2)}`, align: 'left', baseline: 'bottom' },
+            styles: { color: GREEN, size: 10, weight: 'bold', backgroundColor: 'rgba(19,23,34,0.75)' },
+            ignoreEvent: true
+          })
+        }
+
+        // 6. Pattern badge — at breakout bar position
+        figs.push({
+          key: 'badge',
+          type: 'text',
+          attrs: { x: xLabel, y: Math.max(4, yLabel - 36), text: statusLabel, align: 'left', baseline: 'top' },
+          styles: { color: '#fff', size: 12, weight: 'bold', backgroundColor: statusColor, paddingLeft: 6, paddingRight: 6, paddingTop: 2, paddingBottom: 2, borderRadius: 3 },
+          ignoreEvent: true
+        })
+
+        // 7. R:R badge
+        if (rrLabel) {
+          figs.push({
+            key: 'rrBadge',
+            type: 'text',
+            attrs: { x: xLabel, y: Math.max(4, yLabel - 16), text: rrLabel, align: 'left', baseline: 'top' },
+            styles: { color: rrColor, size: 11, weight: 'bold', backgroundColor: 'rgba(19,23,34,0.75)', paddingLeft: 4, paddingRight: 4, paddingTop: 2, paddingBottom: 2, borderRadius: 3 },
+            ignoreEvent: true
+          })
+        }
+
+        return figs
+      }
+    })
+  } catch (_) {}
 }
 
 export default {
@@ -360,6 +511,7 @@ export default {
     this.chart          = null
     this.levelIds       = []
     this.dividerIds     = []
+    this.patternIds     = []
     this.syncLineId     = null
     this.volIndicatorId = null
     this.vwapIndicatorId = null
@@ -632,6 +784,29 @@ export default {
           })
           if (id) this.levelIds.push(id)
         }
+
+        // ── Pattern overlays ──
+        const patterns = ctx.patterns || []
+        const anchorTs = candles[0].timestamp
+        for (const pat of patterns) {
+          if (pat.type !== 'bull_flag') continue
+          const pts = [
+            { timestamp: pat.pole.start_timestamp_ms, value: pat.pole.low },
+            { timestamp: pat.pole.end_timestamp_ms,   value: pat.pole.high },
+            { timestamp: pat.flag.end_timestamp_ms,   value: pat.flag.high },
+            { timestamp: pat.flag.end_timestamp_ms,   value: pat.flag.low },
+            { timestamp: anchorTs,                    value: pat.entry.price },
+            { timestamp: anchorTs,                    value: pat.stop.price },
+            { timestamp: anchorTs,                    value: pat.target.price },
+            { timestamp: pat.breakout.timestamp_ms,   value: pat.breakout.price },
+          ]
+          const id = this.chart.createOverlay({
+            name: 'bullFlag', lock: true,
+            points: pts,
+            extendData: { pattern: pat }
+          })
+          if (id) this.patternIds.push(id)
+        }
       }
     },
 
@@ -641,8 +816,10 @@ export default {
       }
       this.levelIds.forEach(remove)
       this.dividerIds.forEach(remove)
+      this.patternIds.forEach(remove)
       this.levelIds = []
       this.dividerIds = []
+      this.patternIds = []
       // Also clear any lingering syncLine from crosshair sync
       if (this.syncLineId != null) {
         remove(this.syncLineId)
