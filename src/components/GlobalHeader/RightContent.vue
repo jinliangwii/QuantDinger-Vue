@@ -142,7 +142,6 @@ body.realdark,
 
       /* Datasource status pill — keep brand colors in dark mode */
       &.ds-polygon  { color: #a78bfa !important; }
-      &.ds-alpaca   { color: #69c0ff !important; }
       &.ds-yfinance { color: #999 !important; }
       &.ds-unknown  { color: #666 !important; }
     }
