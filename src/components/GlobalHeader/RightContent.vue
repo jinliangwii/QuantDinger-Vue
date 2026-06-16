@@ -3,6 +3,7 @@
     <avatar-dropdown :menu="true" :current-user="currentUser" :class="prefixCls" />
     <notice-icon :class="prefixCls" />
     <select-lang :class="prefixCls" />
+    <datasource-status :class="prefixCls" />
     <a-tooltip :title="$t('app.setting.tooltip')">
       <span :class="prefixCls" @click="handleSettingClick">
         <a-icon type="setting" style="font-size: 16px;" />
@@ -15,6 +16,7 @@
 import AvatarDropdown from './AvatarDropdown'
 import SelectLang from '@/components/SelectLang'
 import NoticeIcon from '@/components/NoticeIcon'
+import DatasourceStatus from './DatasourceStatus'
 import { mapGetters } from 'vuex'
 
 export default {
@@ -22,7 +24,8 @@ export default {
   components: {
     AvatarDropdown,
     SelectLang,
-    NoticeIcon
+    NoticeIcon,
+    DatasourceStatus
   },
   props: {
     prefixCls: {
@@ -136,6 +139,12 @@ body.realdark,
         color: #1890ff !important;
         background: rgba(255, 255, 255, 0.08) !important;
       }
+
+      /* Datasource status pill — keep brand colors in dark mode */
+      &.ds-polygon  { color: #a78bfa !important; }
+      &.ds-alpaca   { color: #69c0ff !important; }
+      &.ds-yfinance { color: #999 !important; }
+      &.ds-unknown  { color: #666 !important; }
     }
 
     /* 头像 */
